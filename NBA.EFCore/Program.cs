@@ -8,6 +8,7 @@ using NBA.EFCore.Repositories;
 using NBA.EFCore.Services;
 using System.Text;
 using System.Linq;
+using NBA.EFCore.Constants;
 
 class Program
 {
@@ -74,9 +75,9 @@ class Program
                 Console.WriteLine("5. Управління статистикою");
                 Console.WriteLine("6. Звіти та складні запити");
                 
-                if (_currentUser.UserRole == "Admin")
+                if (_currentUser.UserRole == UserRoles.Admin)
                 {
-                    Console.WriteLine("7. Адмін-панель (управління видаленими)");
+                Console.WriteLine("7. Адмін-панель");
                 }
                 
                 Console.WriteLine("8. Вийти з системи");
@@ -180,7 +181,7 @@ class Program
             Console.WriteLine("1. Переглянути всі команди");
             Console.WriteLine("2. Пошук команди за ID");
             
-            if (_currentUser?.UserRole == "Analyst")
+            if (_currentUser.UserRole == UserRoles.Analyst)
             {
                 Console.WriteLine("3. Назад");
                 Console.WriteLine("\nПримітка: Аналіст може тільки переглядати дані");
@@ -303,7 +304,7 @@ class Program
 
     static async Task AddTeam()
     {
-        if (_currentUser?.UserRole == "Analyst")
+        if (_currentUser.UserRole == UserRoles.Analyst)
         {
             Console.WriteLine("Доступ заборонено! Аналіст може тільки переглядати дані.");
             Console.ReadKey();
