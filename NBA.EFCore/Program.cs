@@ -9,7 +9,7 @@ using NBA.EFCore.Repositories;
 using NBA.EFCore.Services;
 using System.Text;
 using System.Linq;
-using NBA.EFCore.Constants;  
+using NBA.EFCore.Constants;
 
 class Program
 {
@@ -175,6 +175,78 @@ class Program
     }
 
     static async Task ManageTeams()
+    {
+        while (true)
+        {
+            Console.Clear();
+            Console.WriteLine($"УПРАВЛІННЯ КОМАНДАМИ ({_currentUser?.UserRole})");
+            
+            Console.WriteLine("1. Переглянути всі команди");
+            Console.WriteLine("2. Пошук команди за ID");
+            
+            if (_currentUser.UserRole == UserRoles.Analyst)
+            {
+                Console.WriteLine("3. Назад");
+                Console.WriteLine("\nПримітка: Аналіст може тільки переглядати дані");
+            }
+            else if (_currentUser?.UserRole == "Developer" || _currentUser?.UserRole == "Admin")
+            {
+                Console.WriteLine("3. Додати нову команду");
+                Console.WriteLine("4. Редагувати команду");
+                Console.WriteLine("5. Видалити команду (Soft Delete)");
+                Console.WriteLine("6. Назад");
+            }
+            
+            Console.Write("\nОберіть опцію: ");
+            var choice = Console.ReadLine();
+            
+            if (_currentUser?.UserRole == "Analyst")
+            {
+                switch (choice)
+                {
+                    case "1":
+                        await ShowAllTeams();
+                        break;
+                    case "2":
+                        await SearchTeam();
+                        break;
+                    case "3":
+                        return;
+                    default:
+                        Console.WriteLine("Невірний вибір!");
+                        Console.ReadKey();
+                        break;
+                }
+            }
+            else 
+            {
+                switch (choice)
+                {
+                    case "1":
+                        await ShowAllTeams();
+                        break;
+                    case "2":
+                        await SearchTeam();
+                        break;
+                    case "3":
+                        await AddTeam();
+                        break;
+                    case "4":
+                        await EditTeam();
+                        break;
+                    case "5":
+                        await DeleteTeam();
+                        break;
+                    case "6":
+                        return;
+                    default:
+                        Console.WriteLine("Невірний вибір!");
+                        Console.ReadKey();
+                        break;
+                }
+            }
+        }
+    }
 {
     var menu = _menuService.CreateBaseMenu(
         viewAll: ShowAllTeams,
