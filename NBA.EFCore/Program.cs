@@ -8,6 +8,7 @@ using NBA.EFCore.Repositories;
 using NBA.EFCore.Services;
 using System.Text;
 using System.Linq;
+using NBA.EFCore.Exceptions;
 
 class Program
 {
@@ -19,37 +20,42 @@ class Program
     private static IPlayerRepository _playerRepository = null!;
     private static IStatisticRepository _statisticRepository = null!;
     private static User? _currentUser;
+    private static StatisticInputService _statisticInputService = null!;
+    private static StatisticTransactionService _statisticTransactionService = null!;
+    
 
     static async Task Main(string[] args)
+{
+    Console.OutputEncoding = Encoding.UTF8;
+    
+    var connectionString = "Server=.;Database=database_nba;Trusted_Connection=True;TrustServerCertificate=True";
+    var optionsBuilder = new DbContextOptionsBuilder<NbaDbContext>();
+    optionsBuilder.UseSqlServer(connectionString);
+    
+    _context = new NbaDbContext(optionsBuilder.Options);
+    
+    _authService = new AuthService(_context);
+    _teamRepository = new TeamRepository(_context);
+    _coachRepository = new CoachRepository(_context);
+    _matchRepository = new MatchRepository(_context);
+    _playerRepository = new PlayerRepository(_context);
+    _statisticRepository = new StatisticRepository(_context);
+    _statisticInputService = new StatisticInputService(_context);
+    _statisticTransactionService = new StatisticTransactionService(_context);
+    
+    Console.Clear();
+    
+    try
     {
-        Console.OutputEncoding = Encoding.UTF8;
-        
-        var connectionString = "Server=.;Database=database_nba;Trusted_Connection=True;TrustServerCertificate=True";
-        var optionsBuilder = new DbContextOptionsBuilder<NbaDbContext>();
-        optionsBuilder.UseSqlServer(connectionString);
-        
-        _context = new NbaDbContext(optionsBuilder.Options);
-        
-        _authService = new AuthService(_context);
-        _teamRepository = new TeamRepository(_context);
-        _coachRepository = new CoachRepository(_context);
-        _matchRepository = new MatchRepository(_context);
-        _playerRepository = new PlayerRepository(_context);
-        _statisticRepository = new StatisticRepository(_context);
-        
-        Console.Clear();
-        
-        try
-        {
-            await _authService.InitializeTestUsersAsync();
-            await RunMainMenu();
-        }
-        catch (Exception ex)
-        {
-            PrintError($"Критична помилка: {ex.Message}");
-            Console.ReadKey();
-        }
+        await _authService.InitializeTestUsersAsync();
+        await RunMainMenu();
     }
+    catch (Exception ex)
+    {
+        PrintError($"Критична помилка: {ex.Message}");
+        Console.ReadKey();
+    }
+}
 
     static async Task RunMainMenu()
     {
@@ -1868,190 +1874,33 @@ class Program
     }
 
     static async Task AddStatistic()
+{
+    try
     {
-        Console.Clear();
-        Console.WriteLine("ДОДАВАННЯ СТАТИСТИКИ");
+        var statistic = await _statisticInputService.ReadStatisticDataAsync();
         
-        try
-        {
-            Console.Write("ID статистики: ");
-            if (!int.TryParse(Console.ReadLine(), out int statsId))
-            {
-                Console.WriteLine("Невірний ID!");
-                Console.ReadKey();
-                return;
-            }
-            
-            var existingStat = await _context.Statistics
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(s => s.StatsId == statsId);
-            if (existingStat != null)
-            {
-                Console.WriteLine($"Статистика з ID {statsId} вже існує!");
-                Console.WriteLine("Бажаєте оновити існуючу статистику? (y/n): ");
-                var choice = Console.ReadLine();
-                
-                if (choice?.ToLower() == "y")
-                {
-                    await EditStatistic();
-                    return;
-                }
-                else
-                {
-                    Console.WriteLine("Операція скасована.");
-                    Console.ReadKey();
-                    return;
-                }
-            }
-            
-            Console.Write("ID матчу: ");
-            if (!int.TryParse(Console.ReadLine(), out int matchId))
-            {
-                Console.WriteLine("Невірний ID матчу!");
-                Console.ReadKey();
-                return;
-            }
-            
-            var match = await _context.Matches
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(m => m.MatchId == matchId);
-            if (match == null)
-            {
-                Console.WriteLine($"Матч з ID {matchId} не знайдений!");
-                Console.ReadKey();
-                return;
-            }
-            
-            Console.Write("ID гравця: ");
-            if (!int.TryParse(Console.ReadLine(), out int playerId))
-            {
-                Console.WriteLine("Невірний ID гравця!");
-                Console.ReadKey();
-                return;
-            }
-            
-            var player = await _context.Players
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(p => p.PlayerId == playerId);
-            if (player == null)
-            {
-                Console.WriteLine($"Гравець з ID {playerId} не знайдений!");
-                Console.ReadKey();
-                return;
-            }
-            
-            if (player.TeamId != match.HomeTeamId && player.TeamId != match.AwayTeamId)
-            {
-                Console.WriteLine($"Гравець {playerId} не грав у матчі {matchId}!");
-                Console.WriteLine($"Команда гравця: {player.TeamId}");
-                Console.WriteLine($"Команди матчу: {match.HomeTeamId} (домашня), {match.AwayTeamId} (гостьова)");
-                Console.WriteLine("Все одно додати статистику? (y/n): ");
-                
-                var forceAdd = Console.ReadLine();
-                if (forceAdd?.ToLower() != "y")
-                {
-                    Console.WriteLine("Операція скасована.");
-                    Console.ReadKey();
-                    return;
-                }
-            }
-            
-            var existingPlayerMatchStat = await _context.Statistics
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(s => s.MatchId == matchId && s.PlayerId == playerId);
-            
-            if (existingPlayerMatchStat != null)
-            {
-                Console.WriteLine($"Статистика для гравця {playerId} у матчі {matchId} вже існує!");
-                Console.WriteLine("Бажаєте оновити? (y/n): ");
-                
-                if (Console.ReadLine()?.ToLower() == "y")
-                {
-                    existingPlayerMatchStat.Points = await GetIntInput("Очки", true);
-                    existingPlayerMatchStat.Rebounds = await GetIntInput("Підбирання", true);
-                    existingPlayerMatchStat.Assists = await GetIntInput("Асисти", true);
-                    existingPlayerMatchStat.Steals = await GetIntInput("Перехоплення", true);
-                    existingPlayerMatchStat.Blocks = await GetIntInput("Блокшоти", true);
-                    existingPlayerMatchStat.Turnovers = await GetIntInput("Втрати", true);
-                    
-                    _context.Statistics.Update(existingPlayerMatchStat);
-                    await _context.SaveChangesAsync();
-                    
-                    Console.WriteLine("Статистику успішно оновлено!");
-                    Console.ReadKey();
-                    return;
-                }
-                else
-                {
-                    Console.WriteLine("Операція скасована.");
-                    Console.ReadKey();
-                    return;
-                }
-            }
-            
-            int points = await GetIntInput("Очки", false);
-            int rebounds = await GetIntInput("Підбирання", false);
-            int assists = await GetIntInput("Асисти", false);
-            int steals = await GetIntInput("Перехоплення", false);
-            int blocks = await GetIntInput("Блокшоти", false);
-            int turnovers = await GetIntInput("Втрати", false);
-            
-            var statistic = new Statistic
-            {
-                StatsId = statsId,
-                MatchId = matchId,
-                PlayerId = playerId,
-                Points = points,
-                Rebounds = rebounds,
-                Assists = assists,
-                Steals = steals,
-                Blocks = blocks,
-                Turnovers = turnovers,
-                IsDeleted = false
-            };
-            
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            
-            try
-            {
-                await _context.Statistics.AddAsync(statistic);
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-                
-                Console.WriteLine("Статистику успішно додано!");
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                Console.WriteLine($"Помилка при додаванні: {ex.Message}");
-                
-                if (ex.InnerException != null)
-                {
-                    Console.WriteLine($"Деталі: {ex.InnerException.Message}");
-                    
-                    if (ex.InnerException.Message.Contains("FOREIGN KEY"))
-                    {
-                        Console.WriteLine("\nРІШЕННЯ ПРОБЛЕМИ");
-                        Console.WriteLine("Можливі причини:");
-                        Console.WriteLine("1. Невірний MatchId - перевірте, чи існує матч з таким ID");
-                        Console.WriteLine("2. Невірний PlayerId - перевірте, чи існує гравець з таким ID");
-                        Console.WriteLine("3. Гравець не належить до команд матчу");
-                    }
-                    else if (ex.InnerException.Message.Contains("PRIMARY KEY") || 
-                             ex.InnerException.Message.Contains("UNIQUE"))
-                    {
-                        Console.WriteLine("\nСтатистика з таким ID вже існує!");
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Критична помилка: {ex.Message}");
-        }
+        var created = await _statisticTransactionService.CreateStatisticAsync(statistic);
         
-        Console.ReadKey();
+        PrintSuccess($"Статистику з ID {created.StatsId} успішно додано!");
+        
+        await ShowStatisticDetails(created.StatsId);
     }
+    catch (ValidationException ex)
+    {
+        PrintError($"Помилка валідації: {ex.Message}");
+    }
+    catch (TransactionException ex)
+    {
+        PrintError($"Помилка бази даних: {ex.Message}");
+    }
+    catch (Exception ex)
+    {
+        PrintError($"Неочікувана помилка: {ex.Message}");
+    }
+    
+    Console.WriteLine("\nНатисніть будь-яку клавішу для продовження...");
+    Console.ReadKey();
+}
 
     static async Task<int> GetIntInput(string fieldName, bool allowNull)
     {
@@ -2075,149 +1924,73 @@ class Program
     }
 
     static async Task EditStatistic()
+{
+    Console.Clear();
+    PrintHeader(" РЕДАГУВАННЯ СТАТИСТИКИ");
+    
+    try
     {
-        Console.Clear();
-        Console.WriteLine("РЕДАГУВАННЯ СТАТИСТИКИ");
-        
-        try
+        Console.Write("Введіть ID статистики для редагування: ");
+        if (!int.TryParse(Console.ReadLine(), out int statId))
         {
-            Console.Write("Введіть ID статистики для редагування: ");
-            if (!int.TryParse(Console.ReadLine(), out int statId))
-            {
-                Console.WriteLine("Невірний ID!");
-                Console.ReadKey();
-                return;
-            }
-            
-            var statistic = await _context.Statistics
-                .IgnoreQueryFilters()
-                .Include(s => s.Player)
-                .Include(s => s.Match)
-                .FirstOrDefaultAsync(s => s.StatsId == statId);
-            
-            if (statistic == null)
-            {
-                Console.WriteLine($"Статистика з ID {statId} не знайдена!");
-                Console.WriteLine("\nХочете переглянути доступну статистику? (y/n): ");
-                
-                if (Console.ReadLine()?.ToLower() == "y")
-                {
-                    await ShowRecentStatistics();
-                }
-                
-                Console.ReadKey();
-                return;
-            }
-            
-            Console.WriteLine("\nПОТОЧНІ ДАНІ");
-            Console.WriteLine($"Гравець: {statistic.Player?.FirstName} {statistic.Player?.LastName} (ID: {statistic.PlayerId})");
-            Console.WriteLine($"Матч: ID {statistic.MatchId} ({statistic.Match?.GameDate:dd.MM.yyyy})");
-            Console.WriteLine($"Поточні очки: {statistic.Points ?? 0}");
-            Console.WriteLine($"Поточні підбирання: {statistic.Rebounds ?? 0}");
-            Console.WriteLine($"Поточні асисти: {statistic.Assists ?? 0}");
-            Console.WriteLine($"Поточні перехоплення: {statistic.Steals ?? 0}");
-            Console.WriteLine($"Поточні блокшоти: {statistic.Blocks ?? 0}");
-            Console.WriteLine($"Поточні втрати: {statistic.Turnovers ?? 0}");
-            
-            Console.WriteLine("\nВВЕДІТЬ НОВІ ЗНАЧЕНЯ");
-            Console.WriteLine("(Натисніть Enter, щоб залишити поточне значення)");
-            
-            Console.Write($"Очки (поточне: {statistic.Points ?? 0}): ");
-            statistic.Points = GetUpdatedIntValue(statistic.Points, Console.ReadLine());
-            
-            Console.Write($"Підбирання (поточне: {statistic.Rebounds ?? 0}): ");
-            statistic.Rebounds = GetUpdatedIntValue(statistic.Rebounds, Console.ReadLine());
-            
-            Console.Write($"Асисти (поточне: {statistic.Assists ?? 0}): ");
-            statistic.Assists = GetUpdatedIntValue(statistic.Assists, Console.ReadLine());
-            
-            Console.Write($"Перехоплення (поточне: {statistic.Steals ?? 0}): ");
-            statistic.Steals = GetUpdatedIntValue(statistic.Steals, Console.ReadLine());
-            
-            Console.Write($"Блокшоти (поточне: {statistic.Blocks ?? 0}): ");
-            statistic.Blocks = GetUpdatedIntValue(statistic.Blocks, Console.ReadLine());
-            
-            Console.Write($"Втрати (поточне: {statistic.Turnovers ?? 0}): ");
-            statistic.Turnovers = GetUpdatedIntValue(statistic.Turnovers, Console.ReadLine());
-            
-            Console.Write($"\nХвилини на полі (формат HH:mm, поточне: {statistic.MinutesPlayed:HH:mm}, Enter для пропуску): ");
-            var minutesInput = Console.ReadLine();
-            
-            if (!string.IsNullOrEmpty(minutesInput))
-            {
-                if (TimeOnly.TryParse(minutesInput, out TimeOnly minutesPlayed))
-                {
-                    statistic.MinutesPlayed = minutesPlayed;
-                    Console.WriteLine($"   Хвилини оновлено: {minutesPlayed:HH:mm}");
-                }
-                else
-                {
-                    Console.WriteLine("   Невірний формат часу");
-                }
-            }
-            
-            Console.WriteLine("\n=== ПІДТВЕРДЖЕННЯ ЗМІН ===");
-            Console.WriteLine("Перевірте введені дані:");
-            Console.WriteLine($"Очки: {statistic.Points ?? 0}");
-            Console.WriteLine($"Підбирання: {statistic.Rebounds ?? 0}");
-            Console.WriteLine($"Асисти: {statistic.Assists ?? 0}");
-            Console.WriteLine($"Перехоплення: {statistic.Steals ?? 0}");
-            Console.WriteLine($"Блокшоти: {statistic.Blocks ?? 0}");
-            Console.WriteLine($"Втрати: {statistic.Turnovers ?? 0}");
-            
-            Console.Write("\nЗберегти зміни? (y/n): ");
-            var confirm = Console.ReadLine();
-            
-            if (confirm?.ToLower() != "y")
-            {
-                Console.WriteLine("Редагування скасовано.");
-                Console.ReadKey();
-                return;
-            }
-            
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            
-            try
-            {
-                _context.Statistics.Update(statistic);
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-                
-                Console.WriteLine("\n Статистику успішно оновлено!");
-                
-                await ShowStatisticDetails(statId);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                await transaction.RollbackAsync();
-                Console.WriteLine($"\n Помилка бази даних: {dbEx.Message}");
-                
-                if (dbEx.InnerException != null)
-                {
-                    Console.WriteLine($"Деталі: {dbEx.InnerException.Message}");
-                    
-                    if (dbEx.InnerException.Message.Contains("FOREIGN KEY"))
-                    {
-                        Console.WriteLine("\n=== РІШЕННЯ ПРОБЛЕМИ ===");
-                        Console.WriteLine("Можливо, було введено неіснуючий PlayerId або MatchId.");
-                        Console.WriteLine("Перевірте наявність вказаних гравців та матчів.");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                Console.WriteLine($"\n✗ Критична помилка: {ex.Message}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"\n Помилка: {ex.Message}");
+            PrintError("Невірний ID!");
+            Console.ReadKey();
+            return;
         }
         
-        Console.WriteLine("\nНатисніть будь-яку клавішу для продовження...");
-        Console.ReadKey();
+        var statistic = await _context.Statistics
+            .IgnoreQueryFilters()
+            .Include(s => s.Player)
+            .Include(s => s.Match)
+            .FirstOrDefaultAsync(s => s.StatsId == statId);
+        
+        if (statistic == null)
+        {
+            PrintError($"Статистика з ID {statId} не знайдена!");
+            Console.ReadKey();
+            return;
+        }
+        
+        Console.WriteLine("\nПОТОЧНІ ДАНІ:");
+        Console.WriteLine($"Гравець: {statistic.Player?.FirstName} {statistic.Player?.LastName}");
+        Console.WriteLine($"Матч: {statistic.Match?.GameDate:dd.MM.yyyy}");
+        Console.WriteLine($"Очки: {statistic.Points ?? 0}");
+        Console.WriteLine($"Підбирання: {statistic.Rebounds ?? 0}");
+        Console.WriteLine($"Асисти: {statistic.Assists ?? 0}");
+        
+        Console.WriteLine("\nВВЕДІТЬ НОВІ ЗНАЧЕННЯ (Enter - залишити поточне):");
+        
+        Console.Write($"Очки ({statistic.Points ?? 0}): ");
+        var pointsInput = Console.ReadLine();
+        if (!string.IsNullOrEmpty(pointsInput) && int.TryParse(pointsInput, out int newPoints))
+            statistic.Points = newPoints;
+        
+        Console.Write($"Підбирання ({statistic.Rebounds ?? 0}): ");
+        var reboundsInput = Console.ReadLine();
+        if (!string.IsNullOrEmpty(reboundsInput) && int.TryParse(reboundsInput, out int newRebounds))
+            statistic.Rebounds = newRebounds;
+        
+        Console.Write($"Асисти ({statistic.Assists ?? 0}): ");
+        var assistsInput = Console.ReadLine();
+        if (!string.IsNullOrEmpty(assistsInput) && int.TryParse(assistsInput, out int newAssists))
+            statistic.Assists = newAssists;
+        
+        var updated = await _statisticTransactionService.UpdateStatisticAsync(statistic);
+        
+        PrintSuccess("Статистику успішно оновлено!");
+        await ShowStatisticDetails(updated.StatsId);
     }
+    catch (ValidationException ex)
+    {
+        PrintError($"Помилка валідації: {ex.Message}");
+    }
+    catch (Exception ex)
+    {
+        PrintError($"Помилка: {ex.Message}");
+    }
+    
+    Console.ReadKey();
+}
 
     static int? GetUpdatedIntValue(int? currentValue, string? input)
     {
@@ -2248,91 +2021,97 @@ class Program
         return currentValue;
     }
 
-    static async Task ShowStatisticDetails(int statId)
+    static async Task ShowStatisticDetails(int statsId)
+{
+    var statistic = await _context.Statistics
+        .IgnoreQueryFilters()
+        .Include(s => s.Player)
+        .Include(s => s.Match)
+        .FirstOrDefaultAsync(s => s.StatsId == statsId);
+    
+    if (statistic == null) return;
+    
+    Console.WriteLine("\n=== ДЕТАЛІ СТАТИСТИКИ ===");
+    Console.WriteLine($"ID: {statistic.StatsId}");
+    Console.WriteLine($"Гравець: {statistic.Player?.FirstName} {statistic.Player?.LastName} (ID: {statistic.PlayerId})");
+    Console.WriteLine($"Матч: ID {statistic.MatchId} ({statistic.Match?.GameDate:dd.MM.yyyy})");
+    Console.WriteLine($"\nПОКАЗНИКИ:");
+    Console.WriteLine($"  Очки: {statistic.Points ?? 0}");
+    Console.WriteLine($"  Підбирання: {statistic.Rebounds ?? 0}");
+    Console.WriteLine($"  Асисти: {statistic.Assists ?? 0}");
+    Console.WriteLine($"  Перехоплення: {statistic.Steals ?? 0}");
+    Console.WriteLine($"  Блокшоти: {statistic.Blocks ?? 0}");
+    Console.WriteLine($"  Втрати: {statistic.Turnovers ?? 0}");
+    
+    if (statistic.MinutesPlayed.HasValue)
     {
-        var statistic = await _context.Statistics
-            .IgnoreQueryFilters()
-            .Include(s => s.Player)
-            .ThenInclude(p => p.Team)
-            .Include(s => s.Match)
-            .FirstOrDefaultAsync(s => s.StatsId == statId);
-        
-        if (statistic == null) return;
-        
-        Console.WriteLine("\nДЕТАЛІ СТАТИСТИКИ");
-        Console.WriteLine($"ID: {statistic.StatsId}");
-        Console.WriteLine($"Гравець: {statistic.Player?.FirstName} {statistic.Player?.LastName} (ID: {statistic.PlayerId})");
-        Console.WriteLine($"Команда: {statistic.Player?.Team?.TeamName ?? "Немає"}");
-        Console.WriteLine($"Матч: ID {statistic.MatchId} ({statistic.Match?.GameDate:dd.MM.yyyy})");
-        Console.WriteLine($"\nПОКАЗНИКИ:");
-        Console.WriteLine($"  Очки: {statistic.Points ?? 0}");
-        Console.WriteLine($"  Підбирання: {statistic.Rebounds ?? 0}");
-        Console.WriteLine($"  Асисти: {statistic.Assists ?? 0}");
-        Console.WriteLine($"  Перехоплення: {statistic.Steals ?? 0}");
-        Console.WriteLine($"  Блокшоти: {statistic.Blocks ?? 0}");
-        Console.WriteLine($"  Втрати: {statistic.Turnovers ?? 0}");
-        
-        if (statistic.MinutesPlayed.HasValue)
-        {
-            Console.WriteLine($"  Хвилини на полі: {statistic.MinutesPlayed:HH:mm}");
-        }
+        Console.WriteLine($"  Хвилини на полі: {statistic.MinutesPlayed:HH:mm}");
     }
+}
 
     static async Task DeleteStatistic()
+{
+    if (_currentUser?.UserRole != "Admin")
     {
-        if (_currentUser?.UserRole != "Admin")
-        {
-            Console.WriteLine("Доступ заборонено! Видалення тільки для адміністраторів.");
-            Console.ReadKey();
-            return;
-        }
-        
-        Console.Clear();
-        PrintHeader(" ВИДАЛЕННЯ СТАТИСТИКИ (SOFT DELETE)");
-        
-        Console.Write("Введіть ID статистики для видалення: ");
-        if (!int.TryParse(Console.ReadLine(), out int statId))
-        {
-            PrintError("Невірний ID!");
-            Console.ReadKey();
-            return;
-        }
-        
-        var statistic = await _statisticRepository.GetByIdAsync(statId);
-        if (statistic == null)
-        {
-            PrintError("Статистика не знайдена!");
-            Console.ReadKey();
-            return;
-        }
-        
-        Console.WriteLine($"\nІнформація про статистику:");
-        Console.WriteLine($"  Гравець: {statistic.Player?.FirstName} {statistic.Player?.LastName}");
-        Console.WriteLine($"  Матч ID: {statistic.MatchId}");
-        Console.WriteLine($"  Очки: {statistic.Points ?? 0}");
-        
-        Console.Write($"\nВидалити статистику гравця {statistic.Player?.FirstName} {statistic.Player?.LastName}? (y/n): ");
-        var confirm = Console.ReadLine();
-        
-        if (confirm?.ToLower() == "y")
-        {
-            try
-            {
-                await _statisticRepository.DeleteAsync(statId);
-                PrintSuccess("Статистику успішно видалено (Soft Delete)!");
-            }
-            catch (Exception ex)
-            {
-                PrintError($"Помилка: {ex.Message}");
-            }
-        }
-        else
-        {
-            PrintInfo("Видалення скасовано.");
-        }
-        
+        PrintError("Доступ заборонено! Видалення тільки для адміністраторів.");
         Console.ReadKey();
+        return;
     }
+    
+    Console.Clear();
+    PrintHeader(" ВИДАЛЕННЯ СТАТИСТИКИ (SOFT DELETE)");
+    
+    Console.Write("Введіть ID статистики для видалення: ");
+    if (!int.TryParse(Console.ReadLine(), out int statId))
+    {
+        PrintError("Невірний ID!");
+        Console.ReadKey();
+        return;
+    }
+    
+    var statistic = await _context.Statistics
+        .IgnoreQueryFilters()
+        .Include(s => s.Player)
+        .FirstOrDefaultAsync(s => s.StatsId == statId);
+    
+    if (statistic == null)
+    {
+        PrintError("Статистика не знайдена!");
+        Console.ReadKey();
+        return;
+    }
+    
+    Console.WriteLine($"\nІнформація про статистику:");
+    Console.WriteLine($"  Гравець: {statistic.Player?.FirstName} {statistic.Player?.LastName}");
+    Console.WriteLine($"  Матч ID: {statistic.MatchId}");
+    Console.WriteLine($"  Очки: {statistic.Points ?? 0}");
+    
+    Console.Write($"\nВидалити статистику? (y/n): ");
+    var confirm = Console.ReadLine();
+    
+    if (confirm?.ToLower() == "y")
+    {
+        try
+        {
+            bool success = await _statisticTransactionService.DeleteStatisticAsync(statId);
+            
+            if (success)
+                PrintSuccess("Статистику успішно видалено (Soft Delete)!");
+            else
+                PrintError("Не вдалося видалити статистику!");
+        }
+        catch (Exception ex)
+        {
+            PrintError($"Помилка: {ex.Message}");
+        }
+    }
+    else
+    {
+        PrintInfo("Видалення скасовано.");
+    }
+    
+    Console.ReadKey();
+}
 
     static async Task ShowTopScorers()
     {
