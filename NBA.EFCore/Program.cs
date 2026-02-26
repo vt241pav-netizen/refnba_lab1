@@ -1,4 +1,5 @@
-﻿using System;
+﻿
+using System;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using NBA.EFCore.Data;
@@ -19,6 +20,7 @@ class Program
     private static IMatchRepository _matchRepository = null!;
     private static IPlayerRepository _playerRepository = null!;
     private static IStatisticRepository _statisticRepository = null!;
+    private static MenuService _menuService = null!;
     private static User? _currentUser;
 
     static async Task Main(string[] args)
@@ -37,6 +39,7 @@ class Program
         _matchRepository = new MatchRepository(_context);
         _playerRepository = new PlayerRepository(_context);
         _statisticRepository = new StatisticRepository(_context);
+        _menuService = new MenuService();
         
         Console.Clear();
         
@@ -244,6 +247,21 @@ class Program
             }
         }
     }
+{
+    var menu = _menuService.CreateBaseMenu(
+        viewAll: ShowAllTeams,
+        searchById: SearchTeam,
+        add: _currentUser?.UserRole != UserRoles.Analyst ? AddTeam : null,
+        edit: _currentUser?.UserRole != UserRoles.Analyst ? EditTeam : null,
+        delete: _currentUser?.UserRole == UserRoles.Admin ? DeleteTeam : null
+    );
+    
+    await _menuService.ShowManagementMenu(
+        "УПРАВЛІННЯ КОМАНДАМИ",
+        menu,
+        _currentUser?.UserRole ?? "Guest"
+    );
+}
 
     static async Task ShowAllTeams()
     {
@@ -495,77 +513,26 @@ class Program
     }
 
     static async Task ManageCoaches()
-    {
-        while (true)
-        {
-            Console.Clear();
-            PrintHeader(" УПРАВЛІННЯ ТРЕНЕРАМИ");
-            
-            Console.WriteLine("1. Переглянути всіх тренерів");
-            Console.WriteLine("2. Пошук тренера за ID");
-            
-            if (_currentUser?.UserRole == "Analyst")
-            {
-                Console.WriteLine("3. Назад");
-            }
-            else
-            {
-                Console.WriteLine("3. Додати нового тренера");
-                Console.WriteLine("4. Редагувати тренера");
-                Console.WriteLine("5. Видалити тренера (Soft Delete)");
-                Console.WriteLine("6. Назад");
-            }
-            
-            Console.Write("\nОберіть опцію: ");
-            var choice = Console.ReadLine();
-            
-            if (_currentUser?.UserRole == "Analyst")
-            {
-                switch (choice)
-                {
-                    case "1":
-                        await ShowAllCoaches();
-                        break;
-                    case "2":
-                        await SearchCoach();
-                        break;
-                    case "3":
-                        return;
-                    default:
-                        Console.WriteLine("Невірний вибір!");
-                        Console.ReadKey();
-                        break;
-                }
-            }
-            else
-            {
-                switch (choice)
-                {
-                    case "1":
-                        await ShowAllCoaches();
-                        break;
-                    case "2":
-                        await SearchCoach();
-                        break;
-                    case "3":
-                        await AddCoach();
-                        break;
-                    case "4":
-                        await EditCoach();
-                        break;
-                    case "5":
-                        await DeleteCoach();
-                        break;
-                    case "6":
-                        return;
-                    default:
-                        Console.WriteLine("Невірний вибір!");
-                        Console.ReadKey();
-                        break;
-                }
-            }
-        }
-    }
+{
+    bool canEdit = _currentUser?.UserRole == UserRoles.Developer || 
+                   _currentUser?.UserRole == UserRoles.Admin;
+    bool canDelete = _currentUser?.UserRole == UserRoles.Admin;
+    bool isAnalyst = _currentUser?.UserRole == UserRoles.Analyst;
+    
+    var menu = _menuService.CreateBaseMenu(
+        viewAll: ShowAllCoaches,
+        searchById: SearchCoach,
+        add: !isAnalyst ? AddCoach : null,
+        edit: canEdit ? EditCoach : null,
+        delete: canDelete ? DeleteCoach : null
+    );
+    
+    await _menuService.ShowManagementMenu(
+        "УПРАВЛІННЯ ТРЕНЕРАМИ",
+        menu,
+        _currentUser?.UserRole ?? "Guest"
+    );
+}
 
     static async Task ShowAllCoaches()
     {
@@ -808,81 +775,34 @@ class Program
     }
 
     static async Task ManagePlayers()
+{
+    bool canEdit = _currentUser?.UserRole == UserRoles.Developer || 
+                   _currentUser?.UserRole == UserRoles.Admin;
+    bool canDelete = _currentUser?.UserRole == UserRoles.Admin;
+    bool isAnalyst = _currentUser?.UserRole == UserRoles.Analyst;
+    
+    var additionalOptions = new List<(string, Func<Task>)>();
+    
+    if (!isAnalyst)
     {
-        while (true)
-        {
-            Console.Clear();
-            PrintHeader(" УПРАВЛІННЯ ГРАВЦЯМИ");
-            
-            Console.WriteLine("1. Переглянути всіх гравців");
-            Console.WriteLine("2. Пошук гравця за ID");
-            
-            if (_currentUser?.UserRole == "Analyst")
-            {
-                Console.WriteLine("3. Назад");
-            }
-            else
-            {
-                Console.WriteLine("3. Додати нового гравця");
-                Console.WriteLine("4. Редагувати гравця");
-                Console.WriteLine("5. Видалити гравця (Soft Delete)");
-                Console.WriteLine("6. Переглянути статистику гравця");
-                Console.WriteLine("7. Назад");
-            }
-            
-            Console.Write("\nОберіть опцію: ");
-            var choice = Console.ReadLine();
-            
-            if (_currentUser?.UserRole == "Analyst")
-            {
-                switch (choice)
-                {
-                    case "1":
-                        await ShowAllPlayers();
-                        break;
-                    case "2":
-                        await SearchPlayer();
-                        break;
-                    case "3":
-                        return;
-                    default:
-                        Console.WriteLine("Невірний вибір!");
-                        Console.ReadKey();
-                        break;
-                }
-            }
-            else
-            {
-                switch (choice)
-                {
-                    case "1":
-                        await ShowAllPlayers();
-                        break;
-                    case "2":
-                        await SearchPlayer();
-                        break;
-                    case "3":
-                        await AddPlayer();
-                        break;
-                    case "4":
-                        await EditPlayer();
-                        break;
-                    case "5":
-                        await DeletePlayer();
-                        break;
-                    case "6":
-                        await ShowPlayerStats();
-                        break;
-                    case "7":
-                        return;
-                    default:
-                        Console.WriteLine("Невірний вибір!");
-                        Console.ReadKey();
-                        break;
-                }
-            }
-        }
+        additionalOptions.Add(("Переглянути статистику гравця", ShowPlayerStats));
     }
+    
+    var menu = _menuService.CreateBaseMenu(
+        viewAll: ShowAllPlayers,
+        searchById: SearchPlayer,
+        add: !isAnalyst ? AddPlayer : null,
+        edit: canEdit ? EditPlayer : null,
+        delete: canDelete ? DeletePlayer : null,
+        additionalOptions: additionalOptions.ToArray()
+    );
+    
+    await _menuService.ShowManagementMenu(
+        "УПРАВЛІННЯ ГРАВЦЯМИ",
+        menu,
+        _currentUser?.UserRole ?? "Guest"
+    );
+}
 
     static async Task ShowAllPlayers()
     {
@@ -1279,81 +1199,34 @@ class Program
     }
 
     static async Task ManageMatches()
+{
+    bool canEdit = _currentUser?.UserRole == UserRoles.Developer || 
+                   _currentUser?.UserRole == UserRoles.Admin;
+    bool canDelete = _currentUser?.UserRole == UserRoles.Admin;
+    bool isAnalyst = _currentUser?.UserRole == UserRoles.Analyst;
+    
+    var additionalOptions = new List<(string, Func<Task>)>();
+    
+    if (!isAnalyst)
     {
-        while (true)
-        {
-            Console.Clear();
-            PrintHeader(" УПРАВЛІННЯ МАТЧАМИ");
-            
-            Console.WriteLine("1. Переглянути всі матчі");
-            Console.WriteLine("2. Пошук матчу за ID");
-            
-            if (_currentUser?.UserRole == "Analyst")
-            {
-                Console.WriteLine("3. Назад");
-            }
-            else
-            {
-                Console.WriteLine("3. Додати новий матч");
-                Console.WriteLine("4. Редагувати матч");
-                Console.WriteLine("5. Видалити матч (Soft Delete)");
-                Console.WriteLine("6. Матчі за датою");
-                Console.WriteLine("7. Назад");
-            }
-            
-            Console.Write("\nОберіть опцію: ");
-            var choice = Console.ReadLine();
-            
-            if (_currentUser?.UserRole == "Analyst")
-            {
-                switch (choice)
-                {
-                    case "1":
-                        await ShowAllMatches();
-                        break;
-                    case "2":
-                        await SearchMatch();
-                        break;
-                    case "3":
-                        return;
-                    default:
-                        Console.WriteLine("Невірний вибір!");
-                        Console.ReadKey();
-                        break;
-                }
-            }
-            else
-            {
-                switch (choice)
-                {
-                    case "1":
-                        await ShowAllMatches();
-                        break;
-                    case "2":
-                        await SearchMatch();
-                        break;
-                    case "3":
-                        await AddMatch();
-                        break;
-                    case "4":
-                        await EditMatch();
-                        break;
-                    case "5":
-                        await DeleteMatch();
-                        break;
-                    case "6":
-                        await ShowMatchesByDate();
-                        break;
-                    case "7":
-                        return;
-                    default:
-                        Console.WriteLine("Невірний вибір!");
-                        Console.ReadKey();
-                        break;
-                }
-            }
-        }
+        additionalOptions.Add(("Матчі за датою", ShowMatchesByDate));
     }
+    
+    var menu = _menuService.CreateBaseMenu(
+        viewAll: ShowAllMatches,
+        searchById: SearchMatch,
+        add: !isAnalyst ? AddMatch : null,
+        edit: canEdit ? EditMatch : null,
+        delete: canDelete ? DeleteMatch : null,
+        additionalOptions: additionalOptions.ToArray()
+    );
+    
+    await _menuService.ShowManagementMenu(
+        "УПРАВЛІННЯ МАТЧАМИ",
+        menu,
+        _currentUser?.UserRole ?? "Guest"
+    );
+}
 
     static async Task ShowAllMatches()
     {
@@ -1723,82 +1596,34 @@ class Program
     }
 
     static async Task ManageStatistics()
+{
+    bool canEdit = _currentUser?.UserRole == UserRoles.Developer || 
+                   _currentUser?.UserRole == UserRoles.Admin;
+    bool canDelete = _currentUser?.UserRole == UserRoles.Admin;
+    bool isAnalyst = _currentUser?.UserRole == UserRoles.Analyst;
+    
+    var additionalOptions = new List<(string, Func<Task>)>();
+    
+    if (!isAnalyst)
     {
-        while (true)
-        {
-            Console.Clear();
-            Console.WriteLine("УПРАВЛІННЯ СТАТИСТИКОЮ");
-            
-            Console.WriteLine("1. Переглянути всю статистику");
-            Console.WriteLine("2. Пошук статистики за ID");
-            
-            if (_currentUser?.UserRole == "Analyst")
-            {
-                Console.WriteLine("3. Назад");
-            }
-            else
-            {
-                Console.WriteLine("3. Додати нову статистику");
-                Console.WriteLine("4. Редагувати статистику");
-                Console.WriteLine("5. Видалити статистику (Soft Delete)");
-                Console.WriteLine("6. Топ-гравці за очками");
-                Console.WriteLine("7. Назад");
-            }
-            
-            Console.Write("\nОберіть опцію: ");
-            var choice = Console.ReadLine();
-            
-            if (_currentUser?.UserRole == "Analyst")
-            {
-                switch (choice)
-                {
-                    case "1":
-                        await ShowRecentStatistics();
-                        break;
-                    case "2":
-                        await SearchStatistic();
-                        break;
-                    case "3":
-                        return;
-                    default:
-                        Console.WriteLine("Невірний вибір!");
-                        Console.ReadKey();
-                        break;
-                }
-            }
-            else
-            {
-                switch (choice)
-                {
-                    case "1":
-                        await ShowRecentStatistics();
-                        break;
-                    case "2":
-                        await SearchStatistic();
-                        break;
-                    case "3":
-                        await AddStatistic();
-                        break;
-                    case "4":
-                        await EditStatistic();
-                        break;
-                    case "5":
-                        await DeleteStatistic();
-                        break;
-                    case "6":
-                        await ShowTopScorers();
-                        break;
-                    case "7":
-                        return;
-                    default:
-                        Console.WriteLine("Невірний вибір!");
-                        Console.ReadKey();
-                        break;
-                }
-            }
-        }
+        additionalOptions.Add(("Топ-гравці за очками", ShowTopScorers));
     }
-
+    
+    var menu = _menuService.CreateBaseMenu(
+        viewAll: ShowRecentStatistics,
+        searchById: SearchStatistic,
+        add: !isAnalyst ? AddStatistic : null,
+        edit: canEdit ? EditStatistic : null,
+        delete: canDelete ? DeleteStatistic : null,
+        additionalOptions: additionalOptions.ToArray()
+    );
+    
+    await _menuService.ShowManagementMenu(
+        "УПРАВЛІННЯ СТАТИСТИКОЮ",
+        menu,
+        _currentUser?.UserRole ?? "Guest"
+    );
+}
     static async Task ShowRecentStatistics()
     {
         Console.Clear();
@@ -2369,203 +2194,96 @@ class Program
     }
 
     static async Task ShowReports()
+{
+    var nbaService = new NbaService(_context);
+    
+    // Створюємо меню звітів
+    var reportsMenu = _menuService.CreateReportsMenu(
+        teamStats: async () => await ShowTeamStats(nbaService),
+        teamsWithRosters: async () => await ShowTeamsWithRosters(nbaService),
+        playersPaged: async () => await ShowPlayersPaged(nbaService),
+        transactions: async () => await TestTransactions()
+    );
+    
+    // Показуємо меню
+    await _menuService.ShowManagementMenu(
+        "ЗВІТИ ТА СКЛАДНІ ЗАПИТИ",
+        reportsMenu,
+        _currentUser?.UserRole ?? "Guest"
+    );
+}
+
+// ДОДАТИ допоміжні методи для звітів
+static async Task ShowTeamStats(NbaService nbaService)
+{
+    Console.Clear();
+    PrintHeader("СТАТИСТИКА КОМАНД");
+    
+    var teamStats = await nbaService.GetTeamStatsAsync();
+    
+    foreach (var stat in teamStats)
     {
-        while (true)
+        Console.WriteLine($"\nКоманда: {stat.TeamName}");
+        Console.WriteLine($"Кількість гравців: {stat.PlayerCount}");
+        Console.WriteLine($"Середній зріст: {stat.AverageHeight:F1} см");
+    }
+    
+    Console.ReadKey();
+}
+
+static async Task ShowTeamsWithRosters(NbaService nbaService)
+{
+    Console.Clear();
+    PrintHeader("КОМАНДИ З ПОВНИМИ СКЛАДАМИ");
+    
+    var teams = await nbaService.GetTeamsWithRostersAsync();
+    
+    foreach (var team in teams)
+    {
+        Console.WriteLine($"\nКоманда: {team.TeamName}");
+        Console.WriteLine($"Гравців: {team.Players?.Count ?? 0}");
+        
+        if (team.Players != null && team.Players.Any())
         {
-            Console.Clear();
-            PrintHeader(" ЗВІТИ ТА СКЛАДНІ ЗАПИТИ");
-            
-            Console.WriteLine("1. Статистика команд");
-            Console.WriteLine("2. Команди з повними складами");
-            Console.WriteLine("3. Гравці з пагінацією");
-            Console.WriteLine("4. Транзакційні операції");
-            Console.WriteLine("5. Назад");
-            
-            Console.Write("\nОберіть опцію: ");
-            var choice = Console.ReadLine();
-            
-            var nbaService = new NbaService(_context);
-            
-            switch (choice)
+            foreach (var player in team.Players.Take(5))
             {
-                case "1":
-                    var teamStats = await nbaService.GetTeamStatsAsync();
-                    Console.Clear();
-                    PrintHeader("СТАТИСТИКА КОМАНД");
-                    foreach (var stat in teamStats)
-                    {
-                        Console.WriteLine($"\nКоманда: {stat.TeamName}");
-                        Console.WriteLine($"Кількість гравців: {stat.PlayerCount}");
-                        Console.WriteLine($"Середній зріст: {stat.AverageHeight:F1} см");
-                        Console.WriteLine($"Середні очки: {stat.AveragePointsScored:F1} ");
-                        
-                    }
-                    Console.ReadKey();
-                    break;
-                    
-                case "2":
-                    var teamsWithRosters = await nbaService.GetTeamsWithRostersAsync();
-                    Console.Clear();
-                    Console.WriteLine("КОМАНДИ З ПОВНИМИ СКЛАДАМИ");
-                    
-                    if (!teamsWithRosters.Any())
-                    {
-                        Console.WriteLine("\nКоманди не знайдені.");
-                        Console.ReadKey();
-                        break;
-                    }
-                    
-                    Console.WriteLine($"\nЗнайдено команд: {teamsWithRosters.Count}");
-                    
-                    foreach (var team in teamsWithRosters)
-                    {
-                        Console.WriteLine($"\n══════════════════════════════════════════════════════");
-                        Console.WriteLine($" КОМАНДА: {team.TeamName.ToUpper()} ({team.Abbreviation})");
-                        Console.WriteLine($" Арена: {team.Arena?.ArenaName ?? "Невідомо"}");
-                        Console.WriteLine($" Рік заснування: {team.YearFounded?.Year.ToString() ?? "Невідомо"}");
-                        
-                        var activePlayers = team.Players?.Where(p => !p.IsDeleted).ToList() ?? new List<Player>();
-                        var deletedPlayers = team.Players?.Where(p => p.IsDeleted).ToList() ?? new List<Player>();
-                        
-                        Console.WriteLine($" Активних гравців: {activePlayers.Count}");
-                        if (deletedPlayers.Count > 0)
-                        {
-                            Console.WriteLine($"  Видалених гравців (Soft Delete): {deletedPlayers.Count}");
-                        }
-                        
-                        if (activePlayers.Any())
-                        {
-                            
-                            Console.WriteLine($"                     СКЛАД КОМАНДИ                      ");
-                            Console.WriteLine($" {"№",-3} {"ID",-5}  {"Гравець",-22}  {"Позиція",-9} {"Країна",-7}");
-                            
-                            foreach (var player in activePlayers.OrderBy(p => p.JerseyNumber))
-                            {
-                                string playerName = $"{player.FirstName} {player.LastName}";
-                                if (playerName.Length > 22)
-                                    playerName = playerName.Substring(0, 19) + "...";
-                                    
-                                Console.WriteLine($" {player.JerseyNumber,-3} {player.PlayerId,-5} " +
-                                                $" {playerName,-22}  {player.Position,-9} {player.Country,-7}");
-                            }
-                            
-                            
-                            var positionGroups = activePlayers
-                                .GroupBy(p => p.Position)
-                                .Select(g => new { Position = g.Key, Count = g.Count() })
-                                .OrderByDescending(g => g.Count);
-                            
-                            Console.WriteLine($"\n РОЗПОДІЛ ПО ПОЗИЦІЯХ:");
-                            Console.WriteLine($" {"Позиція",-15}│ {"Гравців",-7} ");
-                            
-                            foreach (var group in positionGroups)
-                            {
-                                Console.WriteLine($" {group.Position,-15} {group.Count,-7}");
-                            }
-                            
-                            var averageAge = DateTime.Now.Year - activePlayers.Average(p => p.BirthDate.Year);
-                            var averageHeight = activePlayers.Average(p => p.HeightCm);
-                            var averageWeight = activePlayers.Average(p => p.WeightKg);
-                            
-                            
-                            Console.WriteLine($"\n СЕРЕДНІ ПОКАЗНИКИ ГРАВЦІВ:");
-                            Console.WriteLine($" {"Середній вік:",-20} {averageAge:F1} років ");
-                            Console.WriteLine($" {"Середній зріст:",-20} {averageHeight:F1} см   ");
-                            Console.WriteLine($" {"Середня вага:",-20} {averageWeight:F1} кг   ");
-                           
-                        }
-                        else
-                        {
-                            Console.WriteLine($"\n  У команді ще немає активних гравців");
-                            
-                            if (deletedPlayers.Any() && _currentUser?.UserRole == "Admin")
-                            {
-                                Console.WriteLine($"\n  ВИДАЛЕНІ ГРАВЦІ (Soft Delete):");
-                                foreach (var player in deletedPlayers.Take(5))
-                                {
-                                    Console.WriteLine($"  {player.JerseyNumber}. {player.FirstName} {player.LastName}");
-                                }
-                                if (deletedPlayers.Count > 5)
-                                    Console.WriteLine($"  ... та ще {deletedPlayers.Count - 5} гравців");
-                            }
-                        }
-                        
-                        if (team.Coaches?.Any() == true)
-                        {
-                            Console.WriteLine($"\n ТРЕНЕРСЬКИЙ ШТАБ ({team.Coaches.Count} осіб):");
-                            Console.WriteLine($" {"Ім'я",-18} {"Прізвище",-18} {"Посада",-16}");
-                            
-                            foreach (var coach in team.Coaches)
-                            {
-                                Console.WriteLine($"│ {coach.FirstName,-18}│ {coach.LastName,-18}│ {coach.Role,-16}│");
-                            }
-                            
-                            
-                        }
-                        
-                        if (deletedPlayers.Any() && _currentUser?.UserRole == "Admin")
-                        {
-                            Console.WriteLine($"\n ДЛЯ АДМІНІСТРАТОРА:");
-                            Console.WriteLine($"  Видалених гравців: {deletedPlayers.Count}");
-                            Console.Write($"   Показати детальну інформацію? (y/n): ");
-                            
-                            if (Console.ReadLine()?.ToLower() == "y")
-                            {
-                                Console.WriteLine($"\n  ДЕТАЛЬНИЙ СПИСОК ВИДАЛЕНИХ ГРАВЦІВ:");
-                                Console.WriteLine($"   {"ID",-6} {"Гравець",-25} {"Позиція",-12} {"Причина"}");
-                                Console.WriteLine($"   {new string('─', 70)}");
-                                
-                                foreach (var player in deletedPlayers.OrderBy(p => p.LastName))
-                                {
-                                    Console.WriteLine($"   {player.PlayerId,-6} " +
-                                                    $"{player.FirstName} {player.LastName,-18} " +
-                                                    $"{player.Position,-12} {"Soft Delete"}");
-                                }
-                            }
-                        }
-                        
-                        Console.WriteLine($"\n══════════════════════════════════════════════════════");
-                        Console.WriteLine($"Натисніть будь-яку клавішу для наступної команди...");
-                        Console.ReadKey();
-                    }
-                    Console.WriteLine($"\nНатисніть будь-яку клавішу для продовження...");
-                    Console.ReadKey();
-                    break;
-                    
-                case "3":
-                    Console.Write("Сторінка: ");
-                    if (!int.TryParse(Console.ReadLine(), out int page))
-                        page = 1;
-                    
-                    Console.Write("Розмір сторінки: ");
-                    if (!int.TryParse(Console.ReadLine(), out int pageSize))
-                        pageSize = 10;
-                    
-                    Console.Write("Фільтр по команді (Enter для пропуску): ");
-                    var filter = Console.ReadLine();
-                    
-                    var players = await nbaService.GetPlayersPagedAsync(page, pageSize, filter);
-                    Console.Clear();
-                    PrintHeader(" ГРАВЦІ З ПАГІНАЦІЄЮ");
-                    foreach (var player in players)
-                    {
-                        Console.WriteLine($"{player.FirstName} {player.LastName} - {player.Position}");
-                    }
-                    Console.WriteLine($"\nСторінка {page}, показано {players.Count} гравців");
-                    Console.ReadKey();
-                    break;
-                    
-                    
-                case "4":
-                    await TestTransactions();
-                    break;
-                    
-                case "5":
-                    return;
+                Console.WriteLine($"  {player.JerseyNumber}. {player.FirstName} {player.LastName}");
             }
+            
+            if (team.Players.Count > 5)
+                Console.WriteLine($"  ... та ще {team.Players.Count - 5} гравців");
         }
     }
+    
+    Console.ReadKey();
+}
 
+static async Task ShowPlayersPaged(NbaService nbaService)
+{
+    Console.Clear();
+    PrintHeader("ГРАВЦІ З ПАГІНАЦІЄЮ");
+    
+    Console.Write("Сторінка: ");
+    if (!int.TryParse(Console.ReadLine(), out int page))
+        page = 1;
+    
+    Console.Write("Розмір сторінки: ");
+    if (!int.TryParse(Console.ReadLine(), out int pageSize))
+        pageSize = 10;
+    
+    Console.Write("Фільтр по команді (Enter для пропуску): ");
+    var filter = Console.ReadLine();
+    
+    var players = await nbaService.GetPlayersPagedAsync(page, pageSize, filter);
+    
+    foreach (var player in players)
+    {
+        Console.WriteLine($"{player.FirstName} {player.LastName} - {player.Position}");
+    }
+    
+    Console.WriteLine($"\nСторінка {page}, показано {players.Count} гравців");
+    Console.ReadKey();
+}
     static async Task TestTransactions()
     {
         if (_currentUser?.UserRole == "Analyst")
@@ -2647,56 +2365,23 @@ class Program
     }
 
     static async Task AdminDeletedItemsMenu()
-    {
-        while (true)
-        {
-            Console.Clear();
-            PrintHeader(" АДМІН-ПАНЕЛЬ: УПРАВЛІННЯ ВИДАЛЕНИМИ ЗАПИСАМИ");
-            
-            Console.WriteLine("1. Переглянути видалені команди");
-            Console.WriteLine("2. Переглянути видалених гравців");
-            Console.WriteLine("3. Переглянути видалених тренерів");
-            Console.WriteLine("4. Переглянути видалені матчі");
-            Console.WriteLine("5. Переглянути видалену статистику");
-            Console.WriteLine("6. Відновити видалений запис");
-            Console.WriteLine("7. Повне видалення (hard delete)");
-            Console.WriteLine("8. Назад");
-            
-            Console.Write("\nОберіть опцію: ");
-            var choice = Console.ReadLine();
-            
-            switch (choice)
-            {
-                case "1":
-                    await ShowDeletedTeams();
-                    break;
-                case "2":
-                    await ShowDeletedPlayers();
-                    break;
-                case "3":
-                    await ShowDeletedCoaches();
-                    break;
-                case "4":
-                    await ShowDeletedMatches();
-                    break;
-                case "5":
-                    await ShowDeletedStatistics();
-                    break;
-                case "6":
-                    await RestoreDeletedItem();
-                    break;
-                case "7":
-                    await HardDeleteItem();
-                    break;
-                case "8":
-                    return;
-                default:
-                    Console.WriteLine("Невірний вибір!");
-                    Console.ReadKey();
-                    break;
-            }
-        }
-    }
+{
+    var adminMenu = _menuService.CreateAdminMenu(
+        deletedTeams: ShowDeletedTeams,
+        deletedPlayers: ShowDeletedPlayers,
+        deletedCoaches: ShowDeletedCoaches,
+        deletedMatches: ShowDeletedMatches,
+        deletedStats: ShowDeletedStatistics,
+        restoreItem: RestoreDeletedItem,
+        hardDelete: HardDeleteItem
+    );
+    
+    await _menuService.ShowManagementMenu(
+        "АДМІН-ПАНЕЛЬ: УПРАВЛІННЯ ВИДАЛЕНИМИ ЗАПИСАМИ",
+        adminMenu,
+        _currentUser?.UserRole ?? "Guest"
+    );
+}
 
     static async Task ShowDeletedTeams()
     {
